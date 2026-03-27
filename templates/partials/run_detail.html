@@ -1,0 +1,269 @@
+<style>
+.run-detail-page { background: #0d1117; min-height: 100%; }
+.run-meta-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px; padding: 16px 24px 0;
+}
+.meta-item { background: #111720; border: 1px solid #1e2530; border-radius: 4px; padding: 12px 14px; }
+.meta-label { font-family: Geist Mono, monospace; font-size: 10px; color: #4b5563;
+               letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 5px; }
+.meta-value { font-family: Barlow Condensed, sans-serif; font-size: 18px; font-weight: 700; color: #e6edf3; }
+.meta-value.teal  { color: #00d4aa; }
+.meta-value.amber { color: #f0a020; }
+.loot-add-inline { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid #1e2530;
+                    flex-wrap: wrap; align-items: flex-end; }
+.loot-in-sm {
+    background: #0d1117; border: 1px solid #1e2530; border-radius: 3px;
+    padding: 5px 8px; color: #e6edf3; font-size: 12px; font-family: Geist Mono, monospace;
+}
+.loot-in-sm:focus { outline: none; border-color: rgba(0,212,170,.4); }
+.loot-in-sm::placeholder { color: #4b5563; }
+</style>
+
+<div class="run-detail-page">
+
+    <div class="page-header">
+        <div>
+            <div class="page-title">RUN #{{ run.id }}</div>
+            <div class="page-subtitle">
+                {{ run.site_name or 'Unnamed site' }} \u00b7
+                {{ run.region_name }} \u00b7
+                {{ run.run_date or 'Unknown date' }}
+            </div>
+        </div>
+        <div class="page-actions">
+            <span class="badge badge-{{ run.site_type }}">{{ run.site_type }}</span>
+            <span class="badge badge-{{ run.security_class }}">{{ run.security_class }}</span>
+            <span class="badge badge-{{ run.difficulty }}">{{ run.difficulty }}</span>
+            <button class="btn btn-teal btn-sm" onclick="loadPanel('/runs/')">&#8592; All Runs</button>
+            <button class="btn btn-danger btn-sm" onclick="confirmDeleteRun({{ run.id }})">Delete</button>
+        </div>
+    </div>
+
+    <div class="run-meta-grid">
+        <div class="meta-item">
+            <div class="meta-label">ISK Looted</div>
+            <div class="meta-value teal">{{ '{:,.0f}'.format(run.total_loot_value | float) }}</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Loot Items</div>
+            <div class="meta-value">{{ loot | length }}</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Region</div>
+            <div class="meta-value" style="font-size:15px">{{ run.region_name }}</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">System</div>
+            <div class="meta-value" style="font-size:15px">{{ run.system_name or '\u2014' }}</div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Run Time</div>
+            <div class="meta-value amber" id="meta-runtime">
+                {% if run.run_time_seconds %}
+                    {{ (run.run_time_seconds // 60) }}m {{ '%02d'|format(run.run_time_seconds % 60) }}s
+                {% else %}
+                    \u2014
+                {% endif %}
+            </div>
+        </div>
+        <div class="meta-item">
+            <div class="meta-label">Date</div>
+            <div class="meta-value" style="font-size:15px">{{ run.run_date or '\u2014' }}</div>
+        </div>
+    </div>
+
+    {% if run.notes %}
+    <div style="padding: 12px 24px 0;">
+        <div style="background:#111720;border:1px solid #1e2530;border-radius:4px;padding:12px 14px;">
+            <div style="font-family:Geist Mono,monospace;font-size:10px;color:#4b5563;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.8px">Notes</div>
+            <div style="font-size:13px;color:#8892a4">{{ run.notes }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div style="padding: 16px 24px;">
+        <div class="eeih-section">
+            <div class="section-title">
+                Loot Items
+                <span class="section-meta" id="loot-total-display">
+                    {% if loot %}
+                        {{ loot | length }} items \u00b7
+                        {% set ns = namespace(total=0) %}
+                        {% for item in loot %}{% set ns.total = ns.total + (item.total_price | float) %}{% endfor %}
+                        {{ '{:,.0f}'.format(ns.total) }} ISK
+                    {% else %}
+                        0 items
+                    {% endif %}
+                </span>
+            </div>
+
+            {% if loot %}
+            <table class="eeih-table" id="loot-table">
+                <thead>
+                    <tr>
+                        <th>Item Name</th>
+                        <th>Category</th>
+                        <th class="r">Qty</th>
+                        <th class="r">Unit Price</th>
+                        <th class="r">Total</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="loot-tbody">
+                    {% for item in loot %}
+                        {% include 'partials/loot_card.html' %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state" id="loot-empty-state">No loot items recorded for this run.</div>
+            {% endif %}
+
+            <div class="loot-add-inline">
+                <div>
+                    <div style="font-family:Geist Mono,monospace;font-size:10px;color:#4b5563;margin-bottom:4px">ITEM NAME</div>
+                    <input class="loot-in-sm" id="add-loot-name" type="text" placeholder="Item name&#8230;" style="min-width:200px">
+                </div>
+                <div>
+                    <div style="font-family:Geist Mono,monospace;font-size:10px;color:#4b5563;margin-bottom:4px">CATEGORY</div>
+                    <select class="loot-in-sm" id="add-loot-cat">
+                        <option value="artifacts">Artifacts</option>
+                        <option value="blueprints">Blueprints</option>
+                        <option value="datacores">Datacores</option>
+                        <option value="salvage">Salvage</option>
+                        <option value="modules">Modules</option>
+                        <option value="misc">Misc</option>
+                    </select>
+                </div>
+                <div>
+                    <div style="font-family:Geist Mono,monospace;font-size:10px;color:#4b5563;margin-bottom:4px">QTY</div>
+                    <input class="loot-in-sm" id="add-loot-qty" type="number" min="1" value="1" style="width:60px">
+                </div>
+                <div>
+                    <div style="font-family:Geist Mono,monospace;font-size:10px;color:#4b5563;margin-bottom:4px">UNIT PRICE</div>
+                    <input class="loot-in-sm" id="add-loot-price" type="number" min="0" step="0.01" placeholder="0" style="width:130px">
+                </div>
+                <button class="btn btn-teal btn-sm" onclick="addLootItemInline()" style="align-self:flex-end">+ Add Item</button>
+            </div>
+        </div>
+    </div>
+
+    {% if loot %}
+    <div style="padding: 0 24px 40px;">
+        <div class="eeih-section">
+            <div class="section-title">Category Breakdown</div>
+            <div id="loot-cat-breakdown" style="padding:16px 16px;">
+                {% set cat_totals = {} %}
+                {% for item in loot %}
+                    {% set cat = item.item_category | default('misc') %}
+                    {% if cat not in cat_totals %}
+                        {% set _ = cat_totals.update({cat: 0}) %}
+                    {% endif %}
+                    {% set _ = cat_totals.update({cat: cat_totals[cat] + (item.total_price | float)}) %}
+                {% endfor %}
+                {% set grand = loot | sum(attribute='total_price') | float %}
+                {% for cat, val in cat_totals.items() | sort(attribute='1', reverse=True) %}
+                <div style="margin-bottom:12px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                        <span class="badge badge-{{ cat }}">{{ cat }}</span>
+                        <span style="font-family:Geist Mono,monospace;font-size:11px;color:#8892a4">
+                            {{ '{:,.0f}'.format(val) }} ISK
+                            ({% if grand > 0 %}{{ '{:.0f}'.format(val / grand * 100) }}%{% else %}\u2014{% endif %})
+                        </span>
+                    </div>
+                    <div class="progress-wrap">
+                        <div class="progress-fill teal"
+                             style="width:{% if grand > 0 %}{{ (val / grand * 100) | int }}{% else %}0{% endif %}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+(function() {
+    var RUN_ID = {{ run.id }};
+
+    window.deleteLootItem = function(lootId, runId) {
+        if (!confirm('Remove this loot item?')) return;
+        fetch('/api/loot/' + lootId, { method: 'DELETE' })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) {
+                    var row = document.querySelector('[data-loot-id="' + lootId + '"]');
+                    if (row) row.remove();
+                    if (typeof eeihToast === 'function') eeihToast('Loot item removed', 'info');
+                    refreshRunTotal();
+                } else {
+                    if (typeof eeihToast === 'function') eeihToast(d.error || 'Delete failed', 'error');
+                }
+            })
+            .catch(function() {
+                if (typeof eeihToast === 'function') eeihToast('Request failed', 'error');
+            });
+    };
+
+    window.addLootItemInline = function() {
+        var name  = document.getElementById('add-loot-name').value.trim();
+        var cat   = document.getElementById('add-loot-cat').value;
+        var qty   = parseInt(document.getElementById('add-loot-qty').value) || 1;
+        var price = parseFloat(document.getElementById('add-loot-price').value) || 0;
+        if (!name) { document.getElementById('add-loot-name').focus(); return; }
+        fetch('/api/runs/' + RUN_ID + '/loot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item_name: name, item_category: cat, quantity: qty, unit_price: price })
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) {
+                    document.getElementById('add-loot-name').value  = '';
+                    document.getElementById('add-loot-qty').value   = '1';
+                    document.getElementById('add-loot-price').value = '';
+                    if (typeof eeihToast === 'function') eeihToast('Loot added', 'success');
+                    if (typeof loadPanel === 'function') loadPanel('/runs/' + RUN_ID + '/');
+                } else {
+                    if (typeof eeihToast === 'function') eeihToast(d.error || 'Add failed', 'error');
+                }
+            })
+            .catch(function() {
+                if (typeof eeihToast === 'function') eeihToast('Request failed', 'error');
+            });
+    };
+
+    window.confirmDeleteRun = function(id) {
+        if (!confirm('Delete this entire run? All loot data will be lost.')) return;
+        fetch('/api/runs/' + id, { method: 'DELETE' })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) {
+                    if (typeof eeihToast === 'function') eeihToast('Run deleted', 'info');
+                    if (typeof loadPanel === 'function') loadPanel('/runs/');
+                }
+            })
+            .catch(function() {});
+    };
+
+    function refreshRunTotal() {
+        fetch('/api/runs/' + RUN_ID)
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var lootDisp = document.getElementById('loot-total-display');
+                if (lootDisp && d.loot) {
+                    var total = d.loot.reduce(function(s, l) { return s + (parseFloat(l.total_price) || 0); }, 0);
+                    lootDisp.textContent = d.loot.length + ' items \u00b7 ' + total.toLocaleString('en-US', {maximumFractionDigits:0}) + ' ISK';
+                }
+            })
+            .catch(function() {});
+    }
+
+    document.getElementById('add-loot-name').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); addLootItemInline(); }
+    });
+})();
+</script>

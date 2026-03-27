@@ -1,0 +1,212 @@
+<style>
+.loot-page { background: #0d1117; min-height: 100%; }
+</style>
+
+<div class="loot-page">
+
+    <div class="page-header">
+        <div>
+            <div class="page-title">LOOT ANALYSIS</div>
+            <div class="page-subtitle" id="loot-subtitle">Item breakdown and value distribution</div>
+        </div>
+        <div class="page-actions">
+            <select class="filter-select" id="loot-cat-filter" onchange="filterByCategory()">
+                <option value="">All Categories</option>
+                <option value="artifacts">Artifacts</option>
+                <option value="blueprints">Blueprints</option>
+                <option value="datacores">Datacores</option>
+                <option value="salvage">Salvage</option>
+                <option value="modules">Modules</option>
+                <option value="misc">Misc</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="stat-row">
+        <div class="stat-card">
+            <div class="stat-label">Total Loot Value</div>
+            <div class="stat-value teal" id="ls-total-value">&#8212;</div>
+            <div class="stat-sub">all time</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Unique Items</div>
+            <div class="stat-value" id="ls-unique-items">&#8212;</div>
+            <div class="stat-sub">distinct item types</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Quantity</div>
+            <div class="stat-value amber" id="ls-total-qty">&#8212;</div>
+            <div class="stat-sub">units looted</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Runs with Loot</div>
+            <div class="stat-value" id="ls-runs">&#8212;</div>
+            <div class="stat-sub">runs recorded</div>
+        </div>
+    </div>
+
+    <div class="two-col" style="padding-top:0">
+        <div class="eeih-section">
+            <div class="section-title">
+                Top Items by Value
+                <span class="section-meta" id="top-items-meta"></span>
+            </div>
+            <div id="top-items-wrap">
+                <div class="loading">Loading&#8230;</div>
+            </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="eeih-section">
+                <div class="section-title">Value by Category</div>
+                <div style="padding:16px;" id="cat-breakdown-wrap">
+                    <div class="loading">Loading&#8230;</div>
+                </div>
+            </div>
+            <div class="eeih-section">
+                <div class="section-title">Relic vs Data Loot</div>
+                <div style="padding:16px;" id="type-loot-wrap">
+                    <div class="loading">Loading&#8230;</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="padding: 0 24px 40px;">
+        <div class="eeih-section">
+            <div class="section-title">Monthly Loot Value Trend</div>
+            <div class="chart-wrap" style="height:180px;position:relative;">
+                <canvas id="loot-monthly-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    var _lootStats = null;
+    var _monthlyChart = null;
+
+    function loadLootStats() {
+        fetch('/api/loot/stats')
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function(d) {
+                _lootStats = d;
+                var t = d.totals || {};
+                document.getElementById('ls-total-value').textContent = fmtISK(t.total_value);
+                document.getElementById('ls-unique-items').textContent = (t.unique_items || 0).toLocaleString();
+                document.getElementById('ls-total-qty').textContent = (t.total_quantity || 0).toLocaleString();
+                document.getElementById('ls-runs').textContent = (t.runs_with_loot || 0).toLocaleString();
+                document.getElementById('loot-subtitle').textContent =
+                    (t.total_rows || 0).toLocaleString() + ' loot entries \u00b7 ' + fmtISK(t.total_value) + ' total';
+                renderTopItems(d.top_items || []);
+                renderCategoryBreakdown(d.by_category || []);
+                renderTypeBreakdown(d.by_type || []);
+                renderMonthlyChart(d.monthly || []);
+            })
+            .catch(function(err) {
+                document.getElementById('top-items-wrap').innerHTML =
+                    '<div class="loading" style="color:#ef4444">Error: ' + err.message + '</div>';
+            });
+    }
+
+    function renderTopItems(items) {
+        document.getElementById('top-items-meta').textContent = 'top ' + items.length;
+        if (!items.length) {
+            document.getElementById('top-items-wrap').innerHTML = '<div class="empty-state">No loot data yet.</div>';
+            return;
+        }
+        var html = '<table class="eeih-table"><thead><tr>' +
+            '<th>Item</th><th>Cat</th>' +
+            '<th class="r">Qty</th><th class="r">Avg Price</th>' +
+            '<th class="r">Total ISK</th><th class="r">Runs</th>' +
+            '</tr></thead><tbody>';
+        items.forEach(function(item) {
+            html += '<tr>' +
+                '<td style="color:#e6edf3;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(item.item_name) + '">' + esc(item.item_name) + '</td>' +
+                '<td>' + catBadge(item.item_category) + '</td>' +
+                '<td class="r mono muted">' + (item.total_quantity || 0).toLocaleString() + '</td>' +
+                '<td class="r mono muted">' + fmtISK(item.avg_price) + '</td>' +
+                '<td class="r mono teal">' + fmtISK(item.total_value) + '</td>' +
+                '<td class="r mono muted">' + (item.found_in_runs || 0) + '</td>' +
+                '</tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('top-items-wrap').innerHTML = html;
+    }
+
+    function renderCategoryBreakdown(cats) {
+        if (!cats.length) { document.getElementById('cat-breakdown-wrap').innerHTML = '<div class="empty-state">No data</div>'; return; }
+        var maxVal = Math.max.apply(null, cats.map(function(c) { return parseFloat(c.total_value)||0; }));
+        var html = cats.map(function(c) {
+            var pct = maxVal > 0 ? Math.round((parseFloat(c.total_value)||0) / maxVal * 100) : 0;
+            return '<div style="margin-bottom:12px">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+                    catBadge(c.item_category) +
+                    '<span style="font-family:Geist Mono,monospace;font-size:11px;color:#8892a4">' + fmtISK(c.total_value) + ' \u00b7 ' + (c.unique_items||0) + ' types</span>' +
+                '</div>' +
+                '<div class="progress-wrap"><div class="progress-fill teal" style="width:' + pct + '%"></div></div>' +
+                '</div>';
+        }).join('');
+        document.getElementById('cat-breakdown-wrap').innerHTML = html;
+    }
+
+    function renderTypeBreakdown(types) {
+        if (!types.length) { document.getElementById('type-loot-wrap').innerHTML = '<div class="empty-state">No data</div>'; return; }
+        var maxVal = Math.max.apply(null, types.map(function(t) { return parseFloat(t.total_loot_value)||0; }));
+        var html = types.map(function(t) {
+            var pct = maxVal > 0 ? Math.round((parseFloat(t.total_loot_value)||0) / maxVal * 100) : 0;
+            return '<div style="margin-bottom:12px">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+                    typeBadge(t.site_type) +
+                    '<span style="font-family:Geist Mono,monospace;font-size:11px;color:#8892a4">' + fmtISK(t.total_loot_value) + ' \u00b7 ' + (t.run_count||0) + ' runs</span>' +
+                '</div>' +
+                '<div class="progress-wrap"><div class="progress-fill amber" style="width:' + pct + '%"></div></div>' +
+            '</div>';
+        }).join('');
+        document.getElementById('type-loot-wrap').innerHTML = html;
+    }
+
+    function renderMonthlyChart(data) {
+        var canvas = document.getElementById('loot-monthly-chart');
+        if (!canvas) return;
+        if (!data.length) { canvas.parentElement.innerHTML = '<div class="empty-state">No monthly data yet</div>'; return; }
+        var labels = data.map(function(d) {
+            var dt = new Date(d.month + 'T00:00:00');
+            return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()];
+        });
+        var values = data.map(function(d) { return parseFloat(d.loot_value) || 0; });
+        if (_monthlyChart) { _monthlyChart.destroy(); _monthlyChart = null; }
+        _monthlyChart = new Chart(canvas, {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: 'Loot Value', data: values,
+                backgroundColor: 'rgba(0,212,170,0.28)', borderColor: 'rgba(0,212,170,0.8)',
+                borderWidth: 1, borderRadius: 2 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: {
+                    backgroundColor: 'rgba(17,23,32,0.95)', borderColor: '#1e2530', borderWidth: 1,
+                    titleColor: '#8892a4', bodyColor: '#e6edf3',
+                    titleFont: { family: 'Geist Mono', size: 10 }, bodyFont: { family: 'Geist Mono', size: 11 },
+                    callbacks: { label: function(ctx) { return ' ' + fmtISK(ctx.raw) + ' ISK'; } }
+                }},
+                scales: {
+                    x: { grid: { color: 'rgba(30,37,48,0.5)' }, ticks: { color: '#4b5563', font: { family: 'Geist Mono', size: 10 } }, border: { color: '#1e2530' } },
+                    y: { grid: { color: 'rgba(30,37,48,0.5)' }, ticks: { color: '#4b5563', font: { family: 'Geist Mono', size: 10 }, callback: function(v) { return fmtISK(v); } }, border: { color: '#1e2530' } }
+                }
+            }
+        });
+    }
+
+    window.filterByCategory = function() {
+        var cat = document.getElementById('loot-cat-filter').value;
+        if (!cat || !_lootStats) { renderTopItems((_lootStats || {}).top_items || []); return; }
+        var filtered = ((_lootStats || {}).top_items || []).filter(function(i) { return i.item_category === cat; });
+        renderTopItems(filtered);
+    };
+
+    loadLootStats();
+})();
+</script>

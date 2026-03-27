@@ -1,0 +1,143 @@
+<style>
+.regions-page { background: #0d1117; min-height: 100%; }
+.region-rank { font-family: Geist Mono, monospace; font-size: 11px; color: #4b5563; }
+.rank-1 { color: #f0a020; font-weight: 700; }
+.rank-2 { color: #8892a4; }
+.rank-3 { color: #6b4e2e; }
+</style>
+
+<div class="regions-page">
+
+    <div class="page-header">
+        <div>
+            <div class="page-title">REGIONS</div>
+            <div class="page-subtitle" id="regions-subtitle">Region performance comparison</div>
+        </div>
+        <div class="page-actions">
+            <select class="filter-select" id="sort-by" onchange="sortRegions()">
+                <option value="total_value">Sort: Total ISK</option>
+                <option value="avg_value">Sort: Avg per Run</option>
+                <option value="total_runs">Sort: Run Count</option>
+                <option value="best_run">Sort: Best Run</option>
+                <option value="last_run">Sort: Last Run</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="stat-row" id="region-stats-row">
+        <div class="stat-card">
+            <div class="stat-label">Regions Explored</div>
+            <div class="stat-value" id="rs-count">&#8212;</div>
+            <div class="stat-sub">distinct regions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Best Avg Region</div>
+            <div class="stat-value teal" id="rs-best-avg" style="font-size:18px">&#8212;</div>
+            <div class="stat-sub" id="rs-best-avg-sub">&#8212;</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Most Active Region</div>
+            <div class="stat-value amber" id="rs-most-runs" style="font-size:18px">&#8212;</div>
+            <div class="stat-sub" id="rs-most-runs-sub">&#8212;</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Highest Single Run</div>
+            <div class="stat-value" id="rs-best-run">&#8212;</div>
+            <div class="stat-sub" id="rs-best-run-sub">&#8212;</div>
+        </div>
+    </div>
+
+    <div style="padding: 0 24px 40px;">
+        <div class="eeih-section">
+            <div class="section-title">
+                Region Comparison Table
+                <span class="section-meta" id="regions-count-meta"></span>
+            </div>
+            <div id="regions-table-wrap">
+                <div class="loading">Loading&#8230;</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    var _allRegions = [];
+
+    function loadRegions() {
+        fetch('/api/regions/stats')
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function(regions) {
+                _allRegions = regions;
+                document.getElementById('regions-subtitle').textContent =
+                    regions.length + ' region' + (regions.length !== 1 ? 's' : '') + ' explored';
+                document.getElementById('regions-count-meta').textContent = regions.length + ' regions';
+                document.getElementById('rs-count').textContent = regions.length;
+                if (regions.length) {
+                    var byAvg = regions.slice().sort(function(a,b) { return (parseFloat(b.avg_value)||0) - (parseFloat(a.avg_value)||0); });
+                    document.getElementById('rs-best-avg').textContent = esc(byAvg[0].region_name);
+                    document.getElementById('rs-best-avg-sub').textContent = fmtISK(byAvg[0].avg_value) + ' avg';
+                    var byRuns = regions.slice().sort(function(a,b) { return (b.total_runs||0) - (a.total_runs||0); });
+                    document.getElementById('rs-most-runs').textContent = esc(byRuns[0].region_name);
+                    document.getElementById('rs-most-runs-sub').textContent = byRuns[0].total_runs + ' runs';
+                    var byBest = regions.slice().sort(function(a,b) { return (parseFloat(b.best_run)||0) - (parseFloat(a.best_run)||0); });
+                    document.getElementById('rs-best-run').textContent = fmtISK(byBest[0].best_run);
+                    document.getElementById('rs-best-run-sub').textContent = esc(byBest[0].region_name);
+                }
+                renderRegionsTable(_allRegions);
+            })
+            .catch(function(err) {
+                document.getElementById('regions-table-wrap').innerHTML =
+                    '<div class="loading" style="color:#ef4444">Error: ' + err.message + '</div>';
+            });
+    }
+
+    window.sortRegions = function() {
+        var key = document.getElementById('sort-by').value;
+        var sorted = _allRegions.slice().sort(function(a, b) {
+            if (key === 'last_run') return (b.last_run || '') > (a.last_run || '') ? 1 : -1;
+            return (parseFloat(b[key]) || 0) - (parseFloat(a[key]) || 0);
+        });
+        renderRegionsTable(sorted);
+    };
+
+    function renderRegionsTable(regions) {
+        if (!regions.length) {
+            document.getElementById('regions-table-wrap').innerHTML =
+                '<div class="empty-state">No regions explored yet. <a href="#" onclick="loadPanel(\'/runs/new/\')" style="color:#f0a020">Log a run</a> to get started.</div>';
+            return;
+        }
+        var maxTotal = Math.max.apply(null, regions.map(function(r) { return parseFloat(r.total_value)||0; }));
+        var html = '<table class="eeih-table"><thead><tr>' +
+            '<th style="width:32px">#</th><th>Region</th>' +
+            '<th class="r">Total ISK</th><th class="r">Avg/Run</th><th class="r">Best Run</th>' +
+            '<th class="r">Runs</th><th class="r">Relic</th><th class="r">Data</th>' +
+            '<th class="r">30d Runs</th><th class="r">30d ISK</th>' +
+            '<th>Last Run</th><th style="min-width:80px">Share</th>' +
+            '</tr></thead><tbody>';
+        regions.forEach(function(r, i) {
+            var pct = maxTotal > 0 ? Math.round((parseFloat(r.total_value)||0) / maxTotal * 100) : 0;
+            var rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+            html += '<tr class="clickable" onclick="loadPanel(\'/runs/?region=' + encodeURIComponent(r.region_name) + '\')">'+
+                '<td class="region-rank ' + rankClass + '">' + (i + 1) + '</td>' +
+                '<td style="color:#e6edf3;font-weight:700">' + esc(r.region_name) + '</td>' +
+                '<td class="r mono teal">' + fmtISK(r.total_value) + '</td>' +
+                '<td class="r mono">' + fmtISK(r.avg_value) + '</td>' +
+                '<td class="r mono amber">' + fmtISK(r.best_run) + '</td>' +
+                '<td class="r mono muted">' + (r.total_runs || 0) + '</td>' +
+                '<td class="r mono muted">' + (r.relic_count || 0) + '</td>' +
+                '<td class="r mono muted">' + (r.data_count || 0) + '</td>' +
+                '<td class="r mono muted">' + (r.runs_30d || 0) + '</td>' +
+                '<td class="r mono">' + fmtISK(r.value_30d) + '</td>' +
+                '<td class="mono muted">' + fmtDate(r.last_run) + '</td>' +
+                '<td><div class="trend-bar-wrap"><div class="trend-bar-fill" style="width:' + pct + '%"></div></div></td>' +
+                '</tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('regions-table-wrap').innerHTML = html;
+    }
+
+    loadRegions();
+})();
+</script>

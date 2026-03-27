@@ -1,0 +1,311 @@
+<style>
+.new-run-page { background: #0d1117; min-height: 100%; }
+.new-run-form { padding: 0 24px 40px; max-width: 900px; }
+.loot-entry-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.loot-entry-table th {
+    padding: 6px 8px; font-family: Geist Mono, monospace; font-size: 10px;
+    color: #4b5563; letter-spacing: 0.8px; text-transform: uppercase;
+    border-bottom: 1px solid #1e2530; background: #0f141d; text-align: left;
+}
+.loot-entry-table td { padding: 4px 4px; border-bottom: 1px solid rgba(30,37,48,.6); }
+.loot-entry-table .r { text-align: right; }
+.loot-total-row { background: #111720; }
+.loot-add-row td { padding: 8px 4px; }
+.loot-in {
+    background: #0d1117; border: 1px solid #1e2530; border-radius: 3px;
+    padding: 5px 8px; color: #e6edf3; font-size: 12px; font-family: Geist Mono, monospace;
+    width: 100%;
+}
+.loot-in:focus { outline: none; border-color: rgba(0,212,170,.4); }
+.loot-in::placeholder { color: #4b5563; }
+.form-section-title {
+    font-family: Barlow Condensed, sans-serif; font-size: 14px; font-weight: 700;
+    letter-spacing: 1px; color: #8892a4; text-transform: uppercase;
+    padding: 20px 0 10px; border-bottom: 1px solid #1e2530; margin-bottom: 16px;
+}
+.run-total-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: #111720; border: 1px solid #1e2530;
+    border-radius: 4px; margin-bottom: 20px;
+    font-family: Geist Mono, monospace; font-size: 12px; color: #4b5563;
+}
+.run-total-value { font-size: 22px; font-weight: 700; color: #00d4aa; font-family: Barlow Condensed, sans-serif; }
+</style>
+
+<div class="new-run-page">
+
+    <div class="page-header">
+        <div>
+            <div class="page-title">LOG RUN</div>
+            <div class="page-subtitle">Record a new exploration site run</div>
+        </div>
+        <div class="page-actions">
+            <button class="btn btn-teal btn-sm" onclick="loadPanel('/runs/')">&#8592; All Runs</button>
+        </div>
+    </div>
+
+    <div class="new-run-form">
+
+        <div class="form-section-title">Site Details</div>
+
+        <div class="form-row form-row-2" style="margin-bottom:16px">
+            <div class="form-group" style="margin:0">
+                <label class="form-label">Site Type *</label>
+                <select class="form-select" id="f-site-type">
+                    <option value="relic">Relic Site</option>
+                    <option value="data">Data Site</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin:0">
+                <label class="form-label">Security Class *</label>
+                <select class="form-select" id="f-sec-class">
+                    <option value="NS">Null-sec (NS)</option>
+                    <option value="WH">Wormhole (WH)</option>
+                    <option value="LS">Low-sec (LS)</option>
+                    <option value="HS">High-sec (HS)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row form-row-2" style="margin-bottom:16px">
+            <div class="form-group" style="margin:0">
+                <label class="form-label">Site Name</label>
+                <input class="form-input" id="f-site-name" type="text" placeholder="e.g. Crumbling Sansha Excavation">
+            </div>
+            <div class="form-group" style="margin:0">
+                <label class="form-label">Difficulty / Tier</label>
+                <select class="form-select" id="f-difficulty">
+                    <option value="standard">Standard</option>
+                    <option value="easy">Easy</option>
+                    <option value="superior">Superior</option>
+                    <option value="ghost">Ghost Site</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row form-row-3" style="margin-bottom:16px">
+            <div class="form-group" style="margin:0">
+                <label class="form-label">Region *</label>
+                <input class="form-input" id="f-region" type="text" placeholder="e.g. The Forge" list="regions-list" autocomplete="off">
+                <datalist id="regions-list"></datalist>
+            </div>
+            <div class="form-group" style="margin:0">
+                <label class="form-label">System</label>
+                <input class="form-input" id="f-system" type="text" placeholder="e.g. Jita">
+            </div>
+            <div class="form-group" style="margin:0">
+                <label class="form-label">Run Date *</label>
+                <input class="form-input" id="f-run-date" type="date">
+            </div>
+        </div>
+
+        <div class="form-row form-row-2" style="margin-bottom:16px">
+            <div class="form-group" style="margin:0">
+                <label class="form-label">Run Time (minutes)</label>
+                <input class="form-input" id="f-run-time" type="number" min="0" placeholder="e.g. 15">
+            </div>
+            <div class="form-group" style="margin:0">
+                <label class="form-label">Notes</label>
+                <input class="form-input" id="f-notes" type="text" placeholder="Optional notes&#8230;">
+            </div>
+        </div>
+
+        <div class="form-section-title">Loot Items</div>
+        <p style="font-family:Geist Mono,monospace;font-size:11px;color:#4b5563;margin-bottom:14px">
+            Enter each loot item below. Use Janice or Eve Appraisal to look up unit prices.
+        </p>
+
+        <div style="border:1px solid #1e2530;border-radius:4px;overflow:hidden;margin-bottom:16px">
+            <table class="loot-entry-table">
+                <thead>
+                    <tr>
+                        <th style="width:35%">Item Name</th>
+                        <th style="width:15%">Category</th>
+                        <th style="width:10%">Qty</th>
+                        <th style="width:18%">Unit Price (ISK)</th>
+                        <th class="r" style="width:16%">Total</th>
+                        <th style="width:6%"></th>
+                    </tr>
+                </thead>
+                <tbody id="loot-rows">
+                </tbody>
+                <tfoot>
+                    <tr class="loot-add-row">
+                        <td><input class="loot-in" id="new-item-name" type="text" placeholder="Item name&#8230;"></td>
+                        <td>
+                            <select class="loot-in" id="new-item-cat">
+                                <option value="artifacts">Artifacts</option>
+                                <option value="blueprints">Blueprints</option>
+                                <option value="datacores">Datacores</option>
+                                <option value="salvage">Salvage</option>
+                                <option value="modules">Modules</option>
+                                <option value="misc">Misc</option>
+                            </select>
+                        </td>
+                        <td><input class="loot-in" id="new-item-qty" type="number" min="1" value="1" style="width:60px"></td>
+                        <td><input class="loot-in" id="new-item-price" type="number" min="0" step="0.01" placeholder="0"></td>
+                        <td class="r"><span id="new-item-total" class="mono" style="color:#4b5563">&#8212;</span></td>
+                        <td><button class="btn btn-teal btn-sm btn-icon" onclick="addLootRow()" title="Add item">+</button></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="run-total-bar">
+            <div>
+                <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase">Total Loot Value</div>
+                <div id="grand-total-isk" class="run-total-value">0 ISK</div>
+            </div>
+            <div style="text-align:right">
+                <div id="loot-item-count" style="font-size:11px;color:#4b5563">0 items</div>
+                <div id="form-error" style="color:#ef4444;font-size:11px;margin-top:4px"></div>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:12px">
+            <button class="btn btn-solid" id="submit-btn" onclick="submitRun()" style="min-width:140px">Save Run</button>
+            <button class="btn btn-teal" onclick="loadPanel('/runs/')">Cancel</button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+(function() {
+
+    var _lootRows = [];
+    var _rowIdx   = 0;
+
+    var today = new Date();
+    var todayStr = today.getFullYear() + '-' +
+        String(today.getMonth() + 1).padStart(2,'0') + '-' +
+        String(today.getDate()).padStart(2,'0');
+    document.getElementById('f-run-date').value = todayStr;
+
+    fetch('/api/runs/regions/list')
+        .then(function(r) { return r.json(); })
+        .then(function(regions) {
+            var dl = document.getElementById('regions-list');
+            regions.forEach(function(name) {
+                var opt = document.createElement('option');
+                opt.value = name;
+                dl.appendChild(opt);
+            });
+        })
+        .catch(function() {});
+
+    ['new-item-qty', 'new-item-price'].forEach(function(id) {
+        document.getElementById(id).addEventListener('input', updateNewItemTotal);
+    });
+
+    function updateNewItemTotal() {
+        var qty   = parseInt(document.getElementById('new-item-qty').value)   || 0;
+        var price = parseFloat(document.getElementById('new-item-price').value) || 0;
+        var total = qty * price;
+        document.getElementById('new-item-total').textContent =
+            total > 0 ? fmtISK(total) : '\u2014';
+    }
+
+    document.getElementById('new-item-name').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); addLootRow(); }
+    });
+
+    window.addLootRow = function() {
+        var name  = document.getElementById('new-item-name').value.trim();
+        var cat   = document.getElementById('new-item-cat').value;
+        var qty   = parseInt(document.getElementById('new-item-qty').value) || 1;
+        var price = parseFloat(document.getElementById('new-item-price').value) || 0;
+        if (!name) { document.getElementById('new-item-name').focus(); return; }
+        var idx = _rowIdx++;
+        _lootRows.push({ idx: idx, item_name: name, item_category: cat, quantity: qty, unit_price: price });
+        document.getElementById('new-item-name').value  = '';
+        document.getElementById('new-item-qty').value   = '1';
+        document.getElementById('new-item-price').value = '';
+        document.getElementById('new-item-total').textContent = '\u2014';
+        document.getElementById('new-item-name').focus();
+        renderLootRows();
+    };
+
+    window.removeLootRow = function(idx) {
+        _lootRows = _lootRows.filter(function(r) { return r.idx !== idx; });
+        renderLootRows();
+    };
+
+    function renderLootRows() {
+        var tbody  = document.getElementById('loot-rows');
+        var total  = 0;
+        if (!_lootRows.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;font-family:Geist Mono,monospace;font-size:11px;color:#4b5563">No loot items added yet</td></tr>';
+        } else {
+            var html = '';
+            _lootRows.forEach(function(r) {
+                var rowTotal = r.quantity * r.unit_price;
+                total += rowTotal;
+                html += '<tr>' +
+                    '<td style="color:#e6edf3">' + esc(r.item_name) + '</td>' +
+                    '<td>' + catBadge(r.item_category) + '</td>' +
+                    '<td class="mono muted">' + r.quantity + '</td>' +
+                    '<td class="mono muted">' + (r.unit_price > 0 ? fmtISKFull(r.unit_price) : '\u2014') + '</td>' +
+                    '<td class="r mono teal">' + fmtISK(rowTotal) + '</td>' +
+                    '<td><button class="btn btn-danger btn-sm btn-icon" onclick="removeLootRow(' + r.idx + ')" title="Remove">\u2715</button></td>' +
+                    '</tr>';
+            });
+            tbody.innerHTML = html;
+        }
+        document.getElementById('grand-total-isk').textContent = fmtISKFull(total);
+        document.getElementById('loot-item-count').textContent = _lootRows.length + ' item' + (_lootRows.length !== 1 ? 's' : '');
+    }
+
+    renderLootRows();
+
+    window.submitRun = function() {
+        document.getElementById('form-error').textContent = '';
+        var siteType  = document.getElementById('f-site-type').value;
+        var region    = document.getElementById('f-region').value.trim();
+        var runDate   = document.getElementById('f-run-date').value;
+        if (!region) {
+            document.getElementById('form-error').textContent = 'Region is required.';
+            document.getElementById('f-region').focus();
+            return;
+        }
+        var runTimeMins = parseFloat(document.getElementById('f-run-time').value) || null;
+        var payload = {
+            site_type:         siteType,
+            site_name:         document.getElementById('f-site-name').value.trim() || null,
+            region_name:       region,
+            system_name:       document.getElementById('f-system').value.trim() || null,
+            security_class:    document.getElementById('f-sec-class').value,
+            difficulty:        document.getElementById('f-difficulty').value,
+            run_date:          runDate || null,
+            run_time_seconds:  runTimeMins ? Math.round(runTimeMins * 60) : null,
+            notes:             document.getElementById('f-notes').value.trim() || null,
+            loot: _lootRows.map(function(r) {
+                return { item_name: r.item_name, item_category: r.item_category,
+                         quantity: r.quantity, unit_price: r.unit_price };
+            }),
+        };
+        var btn = document.getElementById('submit-btn');
+        btn.disabled = true; btn.textContent = 'Saving\u2026';
+        fetch('/api/runs/new', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) {
+                    if (typeof eeihToast === 'function') eeihToast('Run saved! ISK counted.', 'success');
+                    if (typeof loadPanel === 'function') loadPanel('/runs/' + d.run_id + '/');
+                } else {
+                    document.getElementById('form-error').textContent = d.error || 'Save failed';
+                    btn.disabled = false; btn.textContent = 'Save Run';
+                }
+            })
+            .catch(function(err) {
+                document.getElementById('form-error').textContent = 'Request failed: ' + err.message;
+                btn.disabled = false; btn.textContent = 'Save Run';
+            });
+    };
+
+})();
+</script>

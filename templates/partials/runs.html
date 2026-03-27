@@ -1,0 +1,162 @@
+<style>
+.runs-page { background: #0d1117; min-height: 100%; }
+</style>
+
+<div class="runs-page">
+
+    <!-- Header -->
+    <div class="page-header">
+        <div>
+            <div class="page-title">ALL RUNS</div>
+            <div class="page-subtitle" id="runs-subtitle">Loading run log…</div>
+        </div>
+        <div class="page-actions">
+            <button class="btn btn-amber btn-sm" onclick="if(typeof loadPanel==='function') loadPanel('/runs/new/')">+ Log Run</button>
+            <button class="btn btn-teal btn-sm" onclick="clearFilters()">Clear Filters</button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+        <span class="filter-label">TYPE:</span>
+        <select class="filter-select" id="f-type" onchange="applyFilters()">
+            <option value="">All</option>
+            <option value="relic">Relic</option>
+            <option value="data">Data</option>
+        </select>
+
+        <span class="filter-label">REGION:</span>
+        <input class="filter-input" id="f-region" type="text" placeholder="Region name…"
+               oninput="debounceFilters()" style="min-width:140px">
+
+        <span class="filter-label">FROM:</span>
+        <input class="filter-input" id="f-date-from" type="date" onchange="applyFilters()">
+
+        <span class="filter-label">TO:</span>
+        <input class="filter-input" id="f-date-to" type="date" onchange="applyFilters()">
+
+        <span class="filter-label" id="runs-count-lbl" style="margin-left:auto"></span>
+    </div>
+
+    <!-- Runs table -->
+    <div id="runs-table-wrap">
+        <div class="loading">Loading…</div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    var _filterTimer = null;
+
+    function applyFilters() {
+        var params = new URLSearchParams();
+        var type     = document.getElementById('f-type').value;
+        var region   = document.getElementById('f-region').value.trim();
+        var dateFrom = document.getElementById('f-date-from').value;
+        var dateTo   = document.getElementById('f-date-to').value;
+        if (type)     params.set('site_type', type);
+        if (region)   params.set('region', region);
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo)   params.set('date_to', dateTo);
+        loadRuns(params);
+    }
+
+    window.clearFilters = function() {
+        document.getElementById('f-type').value      = '';
+        document.getElementById('f-region').value    = '';
+        document.getElementById('f-date-from').value = '';
+        document.getElementById('f-date-to').value   = '';
+        loadRuns(new URLSearchParams());
+    };
+
+    window.debounceFilters = function() {
+        clearTimeout(_filterTimer);
+        _filterTimer = setTimeout(applyFilters, 300);
+    };
+
+    function loadRuns(params) {
+        document.getElementById('runs-table-wrap').innerHTML = '<div class="loading">Loading…</div>';
+        fetch('/api/runs?' + params.toString())
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function(runs) {
+                document.getElementById('runs-subtitle').textContent =
+                    runs.length + ' run' + (runs.length !== 1 ? 's' : '') + ' in log';
+                document.getElementById('runs-count-lbl').textContent =
+                    runs.length + ' results';
+
+                if (!runs.length) {
+                    document.getElementById('runs-table-wrap').innerHTML =
+                        '<div class="empty-state">No runs match the current filters.<br>' +
+                        '<a href="#" onclick="clearFilters()" style="color:#00d4aa">Clear filters</a>' +
+                        ' or <a href="#" onclick="loadPanel(\'/runs/new/\')" style="color:#f0a020">log a run</a>.</div>';
+                    return;
+                }
+
+                var totalISK = runs.reduce(function(s, r) { return s + (parseFloat(r.total_loot_value) || 0); }, 0);
+                var html = '<div style="padding:10px 24px 6px;font-family:Geist Mono,monospace;font-size:11px;color:#4b5563">' +
+                    'TOTAL: <span style="color:#00d4aa">' + fmtISK(totalISK) + ' ISK</span> \u00b7 ' +
+                    runs.length + ' runs</div>';
+
+                html += '<table class="eeih-table"><thead><tr>' +
+                    '<th>Date</th>' +
+                    '<th>Type</th>' +
+                    '<th>Site Name</th>' +
+                    '<th>Region</th>' +
+                    '<th>System</th>' +
+                    '<th>Sec</th>' +
+                    '<th>Difficulty</th>' +
+                    '<th class="r">Loot Items</th>' +
+                    '<th class="r">ISK Value</th>' +
+                    '<th class="r">Run Time</th>' +
+                    '<th></th>' +
+                    '</tr></thead><tbody>';
+
+                runs.forEach(function(r) {
+                    html += '<tr class="clickable" onclick="loadPanel(\'/runs/' + r.id + '/\')">' +
+                        '<td class="mono muted">' + fmtDate(r.run_date) + '</td>' +
+                        '<td>' + typeBadge(r.site_type) + '</td>' +
+                        '<td style="color:#e6edf3;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.site_name || '\u2014') + '</td>' +
+                        '<td class="muted">' + esc(r.region_name) + '</td>' +
+                        '<td class="mono muted">' + esc(r.system_name || '\u2014') + '</td>' +
+                        '<td>' + secBadge(r.security_class) + '</td>' +
+                        '<td>' + diffBadge(r.difficulty) + '</td>' +
+                        '<td class="r mono muted">' + (r.loot_count || 0) + '</td>' +
+                        '<td class="r mono teal">' + fmtISK(r.total_loot_value) + '</td>' +
+                        '<td class="r mono muted">' + fmtRunTime(r.run_time_seconds) + '</td>' +
+                        '<td class="r">' +
+                            '<button class="btn btn-danger btn-sm btn-icon" ' +
+                                'onclick="event.stopPropagation();deleteRun(' + r.id + ')" title="Delete run">✕</button>' +
+                        '</td>' +
+                        '</tr>';
+                });
+
+                html += '</tbody></table>';
+                document.getElementById('runs-table-wrap').innerHTML = html;
+            })
+            .catch(function(err) {
+                document.getElementById('runs-table-wrap').innerHTML =
+                    '<div class="loading" style="color:#ef4444">Error: ' + err.message + '</div>';
+            });
+    }
+
+    window.deleteRun = function(id) {
+        if (!confirm('Delete run #' + id + '? This cannot be undone.')) return;
+        fetch('/api/runs/' + id, { method: 'DELETE' })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) {
+                    if (typeof eeihToast === 'function') eeihToast('Run deleted', 'success');
+                    applyFilters();
+                } else {
+                    if (typeof eeihToast === 'function') eeihToast(d.error || 'Delete failed', 'error');
+                }
+            })
+            .catch(function() {
+                if (typeof eeihToast === 'function') eeihToast('Delete request failed', 'error');
+            });
+    };
+
+    applyFilters();
+})();
+</script>

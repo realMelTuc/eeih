@@ -1,0 +1,203 @@
+<style>
+.dash-body { background: #0d1117; }
+.dash-two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; padding: 0 24px 20px; }
+@media(max-width:900px){ .dash-two-col { grid-template-columns: 1fr; } }
+</style>
+
+<div class="dash-body">
+
+    <!-- Page header -->
+    <div class="page-header">
+        <div>
+            <div class="page-title">DASHBOARD</div>
+            <div class="page-subtitle">Exploration run overview &amp; performance</div>
+        </div>
+        <div class="page-actions">
+            <button class="btn btn-amber btn-sm" onclick="if(typeof loadPanel==='function') loadPanel('/runs/new/')">+ Log Run</button>
+        </div>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="stat-row" id="dash-stats">
+        <div class="stat-card">
+            <div class="stat-label">Total Runs</div>
+            <div class="stat-value" id="s-total">—</div>
+            <div class="stat-sub">all time</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total ISK Looted</div>
+            <div class="stat-value teal" id="s-total-isk">—</div>
+            <div class="stat-sub" id="s-total-isk-sub">all time</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Avg per Run</div>
+            <div class="stat-value" id="s-avg">—</div>
+            <div class="stat-sub">ISK average</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Best Run</div>
+            <div class="stat-value amber" id="s-best">—</div>
+            <div class="stat-sub">single run record</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">This Week</div>
+            <div class="stat-value green" id="s-week">—</div>
+            <div class="stat-sub" id="s-week-sub">0 runs</div>
+        </div>
+    </div>
+
+    <!-- Weekly trend chart -->
+    <div style="padding: 0 24px 16px;">
+        <div class="eeih-section">
+            {% include 'partials/trend_chart.html' %}
+        </div>
+    </div>
+
+    <!-- Two-col: recent runs + breakdown -->
+    <div class="dash-two-col">
+
+        <!-- Recent runs table -->
+        <div class="eeih-section">
+            <div class="section-title">
+                Recent Runs
+                <span class="section-meta" id="dash-recent-meta"></span>
+            </div>
+            <div id="dash-recent-wrap">
+                <div class="loading">Loading…</div>
+            </div>
+        </div>
+
+        <!-- Right column: top region + breakdown -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+
+            <div class="eeih-section">
+                <div class="section-title">Top Region</div>
+                <div style="padding:16px 16px 12px;" id="dash-top-region">
+                    <div class="loading">Loading…</div>
+                </div>
+            </div>
+
+            <div class="eeih-section">
+                <div class="section-title">Relic vs Data</div>
+                <div style="padding:14px 16px;" id="dash-type-split">
+                    <div class="loading">Loading…</div>
+                </div>
+            </div>
+
+            <div class="eeih-section">
+                <div class="section-title">Security Class</div>
+                <div style="padding:14px 16px;" id="dash-sec-split">
+                    <div class="loading">Loading…</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+
+function loadDashboard() {
+    fetch('/api/dashboard/stats')
+        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(d) {
+            // Stat cards
+            document.getElementById('s-total').textContent = (d.total_runs || 0).toLocaleString();
+            document.getElementById('s-total-isk').textContent = fmtISK(d.total_value);
+            document.getElementById('s-total-isk-sub').textContent =
+                (d.relic_runs || 0) + ' relic \u00b7 ' + (d.data_runs || 0) + ' data';
+            document.getElementById('s-avg').textContent = fmtISK(d.avg_value);
+            document.getElementById('s-best').textContent = fmtISK(d.best_run_value);
+            document.getElementById('s-week').textContent = fmtISK(d.value_this_week);
+            document.getElementById('s-week-sub').textContent = (d.runs_this_week || 0) + ' runs this week';
+
+            // Top region
+            var tr = d.top_region;
+            var trEl = document.getElementById('dash-top-region');
+            if (tr) {
+                trEl.innerHTML =
+                    '<div style="font-size:18px;font-weight:700;color:#e6edf3;margin-bottom:6px">' + esc(tr.region_name) + '</div>' +
+                    '<div style="font-family:Geist Mono,monospace;font-size:11px;color:#8892a4">' +
+                        '<span style="color:#00d4aa">' + fmtISK(tr.total_value) + ' ISK</span>' +
+                        ' \u00b7 ' + (tr.run_count || 0) + ' runs</div>' +
+                    '<div class="trend-bar-wrap" style="margin-top:10px">' +
+                        '<div class="trend-bar-fill" style="width:100%"></div></div>';
+            } else {
+                trEl.innerHTML = '<div class="empty-state">No runs logged yet</div>';
+            }
+
+            // Relic vs data split
+            var total_runs = (d.total_runs || 0);
+            var rPct = total_runs ? Math.round((d.relic_runs / total_runs) * 100) : 0;
+            var dPct = 100 - rPct;
+            document.getElementById('dash-type-split').innerHTML =
+                '<div style="margin-bottom:10px">' +
+                    '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
+                        '<span class="badge badge-relic">relic</span>' +
+                        '<span class="mono muted">' + (d.relic_runs || 0) + ' runs \u00b7 ' + rPct + '%</span>' +
+                    '</div>' +
+                    '<div class="progress-wrap"><div class="progress-fill teal" style="width:' + rPct + '%"></div></div>' +
+                '</div>' +
+                '<div>' +
+                    '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
+                        '<span class="badge badge-data">data</span>' +
+                        '<span class="mono muted">' + (d.data_runs || 0) + ' runs \u00b7 ' + dPct + '%</span>' +
+                    '</div>' +
+                    '<div class="progress-wrap"><div class="progress-fill amber" style="width:' + dPct + '%"></div></div>' +
+                '</div>';
+
+            // Security class split
+            var secRows = (d.by_security || []);
+            var maxVal = secRows.reduce(function(m, s) { return Math.max(m, s.runs || 0); }, 1);
+            var secHtml = secRows.map(function(s) {
+                var pct = Math.round(((s.runs || 0) / maxVal) * 100);
+                return '<div style="margin-bottom:8px">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">' +
+                        secBadge(s.security_class) +
+                        '<span class="mono muted">' + (s.runs || 0) + ' \u00b7 ' + fmtISK(s.total_value) + '</span>' +
+                    '</div>' +
+                    '<div class="progress-wrap"><div class="progress-fill teal" style="width:' + pct + '%"></div></div>' +
+                '</div>';
+            }).join('');
+            document.getElementById('dash-sec-split').innerHTML = secHtml || '<div class="empty-state">No data</div>';
+
+            // Recent runs table
+            var runs = d.recent_runs || [];
+            document.getElementById('dash-recent-meta').textContent = runs.length + ' shown';
+            if (!runs.length) {
+                document.getElementById('dash-recent-wrap').innerHTML = '<div class="empty-state">No runs logged yet. <a href="#" onclick="loadPanel(\'/runs/new/\')" style="color:#00d4aa">Log your first run \u2192</a></div>';
+                return;
+            }
+            var html = '<table class="eeih-table"><thead><tr>' +
+                '<th>Date</th><th>Type</th><th>Site</th><th>Region</th>' +
+                '<th>Sec</th><th class="r">ISK</th>' +
+                '</tr></thead><tbody>';
+            runs.forEach(function(r) {
+                html += '<tr class="clickable" onclick="loadPanel(\'/runs/' + r.id + '/\')">' +
+                    '<td class="mono muted">' + fmtDate(r.run_date) + '</td>' +
+                    '<td>' + typeBadge(r.site_type) + '</td>' +
+                    '<td style="color:#e6edf3;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.site_name || '\u2014') + '</td>' +
+                    '<td class="muted">' + esc(r.region_name) + '</td>' +
+                    '<td>' + secBadge(r.security_class) + '</td>' +
+                    '<td class="r mono teal">' + fmtISK(r.total_loot_value) + '</td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table>';
+            document.getElementById('dash-recent-wrap').innerHTML = html;
+
+            // Render chart with weekly trend data
+            if (typeof renderTrendChart === 'function') {
+                renderTrendChart(d.weekly_trend || []);
+            }
+        })
+        .catch(function(err) {
+            document.getElementById('dash-recent-wrap').innerHTML =
+                '<div class="loading" style="color:#ef4444">Error: ' + err.message + '</div>';
+        });
+}
+
+loadDashboard();
+
+})();
+</script>

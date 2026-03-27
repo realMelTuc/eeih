@@ -1,0 +1,111 @@
+<div class="section-title">
+    Weekly ISK Trend
+    <span class="section-meta" id="trend-chart-meta">last 10 weeks</span>
+</div>
+<div class="chart-wrap" style="height:160px;position:relative;">
+    <canvas id="eeih-trend-chart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    var _trendChart = null;
+
+    window.renderTrendChart = function(data) {
+        var canvas = document.getElementById('eeih-trend-chart');
+        if (!canvas) return;
+        if (!data || !data.length) {
+            var meta = document.getElementById('trend-chart-meta');
+            if (meta) meta.textContent = 'no data';
+            canvas.parentElement.innerHTML = '<div class="empty-state" style="height:120px;display:flex;align-items:center;justify-content:center">No runs in the last 10 weeks</div>';
+            return;
+        }
+
+        var labels = data.map(function(d) {
+            var dt = new Date(d.week_start);
+            return (dt.getMonth() + 1) + '/' + dt.getDate();
+        });
+        var values = data.map(function(d) { return parseFloat(d.total_value) || 0; });
+        var runCounts = data.map(function(d) { return parseInt(d.runs) || 0; });
+
+        var meta = document.getElementById('trend-chart-meta');
+        if (meta) meta.textContent = data.length + ' weeks';
+
+        if (_trendChart) { _trendChart.destroy(); _trendChart = null; }
+
+        _trendChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'ISK Looted',
+                    data: values,
+                    backgroundColor: 'rgba(0,212,170,0.25)',
+                    borderColor: 'rgba(0,212,170,0.8)',
+                    borderWidth: 1,
+                    borderRadius: 2,
+                }, {
+                    label: 'Runs',
+                    data: runCounts,
+                    type: 'line',
+                    borderColor: 'rgba(240,160,32,0.7)',
+                    backgroundColor: 'transparent',
+                    borderWidth: 1.5,
+                    pointRadius: 3,
+                    pointBackgroundColor: 'rgba(240,160,32,0.9)',
+                    yAxisID: 'yRuns',
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(17,23,32,0.95)',
+                        borderColor: '#1e2530',
+                        borderWidth: 1,
+                        titleColor: '#8892a4',
+                        bodyColor: '#e6edf3',
+                        titleFont: { family: 'Geist Mono', size: 10 },
+                        bodyFont:  { family: 'Geist Mono', size: 11 },
+                        callbacks: {
+                            label: function(ctx) {
+                                if (ctx.datasetIndex === 0) {
+                                    return ' ' + fmtISK(ctx.raw) + ' ISK';
+                                }
+                                return ' ' + ctx.raw + ' runs';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid:    { color: 'rgba(30,37,48,0.5)', drawTicks: false },
+                        ticks:   { color: '#4b5563', font: { family: 'Geist Mono', size: 10 } },
+                        border:  { color: '#1e2530' },
+                    },
+                    y: {
+                        position: 'left',
+                        grid:    { color: 'rgba(30,37,48,0.5)', drawTicks: false },
+                        ticks:   {
+                            color: '#4b5563',
+                            font: { family: 'Geist Mono', size: 10 },
+                            callback: function(v) { return fmtISK(v); }
+                        },
+                        border:  { color: '#1e2530' },
+                    },
+                    yRuns: {
+                        position: 'right',
+                        grid:    { drawOnChartArea: false },
+                        ticks:   { color: '#4b5563', font: { family: 'Geist Mono', size: 10 }, stepSize: 1 },
+                        border:  { color: '#1e2530' },
+                    }
+                }
+            }
+        });
+    };
+})();
+</script>

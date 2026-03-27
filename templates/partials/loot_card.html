@@ -1,0 +1,32 @@
+{% if item %}
+<tr class="loot-row" data-loot-id="{{ item.id }}">
+    <td style="color:#e6edf3;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        {{ item.item_name }}
+    </td>
+    <td>
+        <span class="badge badge-{{ item.item_category | default('misc') }}">
+            {{ item.item_category | default('misc') }}
+        </span>
+    </td>
+    <td class="r mono muted">{{ item.quantity | int }}</td>
+    <td class="r mono muted">
+        {% if item.unit_price and item.unit_price > 0 %}
+            {{ '{:,.0f}'.format(item.unit_price | float) }} ISK
+        {% else %}
+            —
+        {% endif %}
+    </td>
+    <td class="r mono teal">
+        {% if item.total_price and item.total_price > 0 %}
+            {{ '{:,.0f}'.format(item.total_price | float) }} ISK
+        {% else %}
+            —
+        {% endif %}
+    </td>
+    <td class="r">
+        <button class="btn btn-danger btn-sm btn-icon"
+                onclick="deleteLootItem({{ item.id }}, {{ run.id }})"
+                title="Remove loot item">✕</button>
+    </td>
+</tr>
+{% endif %}
